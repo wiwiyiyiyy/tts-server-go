@@ -4,6 +4,10 @@
 # - DOCKER_PASSWORD: Docker Hub 密码，用于登录 Docker Hub
 # - DOCKER_IMAGE_URL: Docker 镜像的 URL，示例值：yourdomain.com/libraryname/imagename:tagname
 # - PARAM_ARRAY: JSON 格式的参数数组，用于 -s 参数传递，示例值：["参数1", "参数2", "参数3"]
+# - DOCKER_REGISTRY_URL
+# - MINIO_ENDPOINT
+# - MINIO_ACCESS_KEY
+# - MINIO_SECRET_KEY
 
 name: Docker CI with JSON Array
 
@@ -19,22 +23,11 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v2
 
-      # Step 2: Extract registry from DOCKER_IMAGE_URL
-      - name: Extract registry from DOCKER_IMAGE_URL
-        id: extract_registry
-        run: |
-          # Get DOCKER_IMAGE_URL from secrets
-          DOCKER_IMAGE_URL="${{ secrets.DOCKER_IMAGE_URL }}"
-          # Use regex to extract registry part (everything before the first '/')
-          REGISTRY=$(echo "$DOCKER_IMAGE_URL" | sed -E 's|([^/]+)/.*|\1|')
-          # Set REGISTRY as an output variable
-          echo "::set-output name=REGISTRY::$REGISTRY"
-
       # Step 3: 登录 Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
-          registry: ${{ steps.extract_registry.outputs.REGISTRY }}
+          registry: ${{ steps.DOCKER_REGISTRY_URL }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
@@ -73,3 +66,25 @@ jobs:
             docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
               java -jar /app/cg-runner.jar -s "$param"
           done
+
+      # Step 7: 解析 JSON 数组并循环运行容器并重定向日志到独立文件
+      - name: Run Docker container with JSON array and redirect logs to individual files
+        env:
+          PARAM_ARRAY: ${{ secrets.PARAM_ARRAY }}
+        run: |
+          for param in $(echo "${PARAM_ARRAY}" | jq -r '.[]'); do
+            LOG_FILE="logs/docker_run_log_${param}.log"
+            echo "Running container with -s parameter: $param" >> $LOG_FILE
+            docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
+              java -jar /app/cg-runner.jar -s "$param" >> $LOG_FILE 2>&1
+          done
+
+      - name: Minio Deploy
+        uses: hkdobrev/minio-deploy-action@v1
+        with:
+          endpoint: ${{ secrets.MINIO_ENDPOINT }}
+          access_key: ${{ secrets.MINIO_ACCESS_KEY }}
+          secret_key: ${{ secrets.MINIO_SECRET_KEY }}
+          bucket: 'cg-runner'  # Change this to your actual bucket name
+          source_dir: 'logs'  # Assuming logs are in the current directory
+          target_dir: ${{ steps.deploy.outputs.TARGET_DIR }}  # Use the generated target directory
