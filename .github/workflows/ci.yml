@@ -74,14 +74,17 @@ jobs:
         run: |
           LOG_DIR="logs"
           mkdir -p $LOG_DIR  # 确保日志目录存在
+          LOG_FILE="${LOG_DIR}/docker_run_complete.log"
+          
+          # 重定向所有输出到日志文件
+          exec >> "$LOG_FILE" 2>&1
+      
           for param in $(echo "${PARAM_ARRAY}" | jq -r '.[]'); do
-            LOG_FILE="${LOG_DIR}/docker_run_log_${param}.log"
-            {
-              echo "Running container with -s parameter: $param"
-              docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
-                java -jar /app/cg-runner.jar -s "$param"
-            } >> "$LOG_FILE" 2>&1
+            echo "Running container with -s parameter: $param"
+            docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
+              java -jar /app/cg-runner.jar -s "$param"
           done
+
       
 
       - name: Minio Deploy
