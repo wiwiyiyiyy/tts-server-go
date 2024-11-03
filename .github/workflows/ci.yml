@@ -72,12 +72,17 @@ jobs:
         env:
           PARAM_ARRAY: ${{ secrets.PARAM_ARRAY }}
         run: |
+          LOG_DIR="logs"
+          mkdir -p $LOG_DIR  # 确保日志目录存在
           for param in $(echo "${PARAM_ARRAY}" | jq -r '.[]'); do
-            LOG_FILE="logs/docker_run_log_${param}.log"
-            echo "Running container with -s parameter: $param" >> $LOG_FILE
-            docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
-              java -jar /app/cg-runner.jar -s "$param" >> $LOG_FILE 2>&1
+            LOG_FILE="${LOG_DIR}/docker_run_log_${param}.log"
+            {
+              echo "Running container with -s parameter: $param"
+              docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
+                java -jar /app/cg-runner.jar -s "$param"
+            } >> "$LOG_FILE" 2>&1
           done
+      
 
       - name: Minio Deploy
         uses: hkdobrev/minio-deploy-action@v1
