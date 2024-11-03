@@ -81,7 +81,7 @@ jobs:
       
           for param in $(echo "${PARAM_ARRAY}" | jq -r '.[]'); do
             echo "Running container with -s parameter: $param"
-            docker run --rm --name cg-runner ${{ secrets.DOCKER_IMAGE_URL }} \
+            docker run --rm ${{ secrets.DOCKER_IMAGE_URL }} \
               java -jar /app/cg-runner.jar -s "$param"
           done
 
